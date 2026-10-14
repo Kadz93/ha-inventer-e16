@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.14 – 2026-10-14
 
 - **Firmware check opt-in** (#6): new installations no longer ask the manufacturer's cloud; switch
   it on in the options. Existing installations keep it on (config entry migration 1.1 → 1.2), an
