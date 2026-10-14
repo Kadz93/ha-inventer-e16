@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.11 – 2026-10-14
 
 - **Fan on/off** follows fan speed and mode instead of playback: playback often lags behind a
   command, so the fan could show *off* although it was already running again (#1).
@@ -8,6 +8,7 @@
   its record, only the timer drops to 0 – `active` is then `false` (#2).
 - **DHCP discovery** also for controllers that announce themselves as `noName-<device id>` (#3).
 - **Option: polling interval** of the zone status, 15–3600 s, default 30 s (#8).
+- CI: Home Assistant tests run on Python 3.14, i.e. against the supported Home Assistant version.
 
 ## 0.3.10 – 2026-10-08
 
