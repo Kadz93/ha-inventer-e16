@@ -3,7 +3,7 @@
 ## 0.3.12 – 2026-10-14
 
 - Client: read the time program of a ventilation profile and write or delete single entries,
-  each write read back (#9). Not used by Home Assistant entities yet. Packet 48 documented in
+  each write read back (#9). Writing is not available in Home Assistant yet. Packet 48 documented in
   `docs/protocol.md`.
 - **Service `get_time_program`** (response only): the time program of a ventilation profile with
   time, weekdays, mode and speed per entry (#9).
