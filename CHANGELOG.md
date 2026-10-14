@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.13 – 2026-10-14
 
 - **Services `set_time_program_entry` and `delete_time_program_entry`**: change one entry of a
   profile's time program, read back from the controller after every write (#9).
