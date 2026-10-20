@@ -390,6 +390,15 @@
       }
     },
     "select": {
+      "mode": {
+        "name": "Betriebsart",
+        "state": {
+          "heat_recovery": "Wärmerückgewinnung",
+          "ventilation": "Durchzug",
+          "pause": "Geschlossene Klappe",
+          "pause_open": "Offene Klappe"
+        }
+      },
       "profile": {
         "name": "Lüftungsprofil",
         "state": {

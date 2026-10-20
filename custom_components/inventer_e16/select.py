@@ -1,11 +1,23 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Tobias Krautkremer
-"""Ventilation profile of the zone, filter and service interval."""
+"""Ventilation profile of the zone, operating mode, filter and service interval."""
 from homeassistant.components.select import SelectEntity
 from homeassistant.const import EntityCategory
 
 from . import client
 from .entity import E16Entity
+from .sensor import override_active
+
+# Operating modes of a zone (UserOverride fan mode)
+MODE_TO_FAN = {
+    "heat_recovery": client.FAN_HEAT_RECOVERY,
+    "ventilation": client.FAN_VENTILATION,
+    "pause": client.FAN_OFF,
+    "pause_open": client.FAN_STOP,
+}
+FAN_TO_MODE = {v: k for k, v in MODE_TO_FAN.items()}
+# Zone status mode (1 = ventilation, 2 = heat recovery, 0 = off) -> mode key
+READ_TO_MODE = {1: "ventilation", 2: "heat_recovery", 0: "pause"}
 
 # VentilationProfile values; custom profiles and winter only appear when active
 PROFILES = {0: "default", 1: "bedroom", 2: "childrens_room", 3: "bathroom", 4: "living_room",
@@ -25,8 +37,43 @@ def interval_option(months):
 async def async_setup_entry(hass, entry, async_add_entities):
     data = entry.runtime_data
     entities = [E16Profile(zone, entry, "profile", zone_id=zone.data["zone_id"]) for zone in data.zones]
+    entities += [E16Mode(zone, entry, "mode", zone_id=zone.data["zone_id"]) for zone in data.zones]
     entities += [E16Interval(data.info, entry, *item) for item in INTERVALS]
     async_add_entities(entities)
+
+
+class E16Mode(E16Entity, SelectEntity):
+    """Operating mode of the zone (heat recovery, ventilation, closed/open flap)."""
+
+    def __init__(self, coordinator, entry, key, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
+
+    @property
+    def options(self):
+        return list(MODE_TO_FAN)
+
+    @property
+    def current_option(self):
+        data = self.coordinator.data
+        last = data.get("last_override")
+        if last and override_active(last, data.get("timer", 0)):
+            mode = FAN_TO_MODE.get(last.get("mode"))
+            if mode:
+                return mode
+        return READ_TO_MODE.get(data.get("mode"))
+
+    async def async_select_option(self, option):
+        fan_mode = MODE_TO_FAN.get(option)
+        if fan_mode is None:
+            raise ValueError(f"Unknown mode {option}")
+        speed = 0 if fan_mode in (client.FAN_OFF, client.FAN_STOP) else max(self.coordinator.data.get("speed", 1), 1)
+        await self.coordinator.async_override(
+            client.CMD_ZONE_SPEED_MODE,
+            speed,
+            fan_mode,
+            self.coordinator.data["zone_id"],
+            self.coordinator.override_minutes * 60,
+        )
 
 
 class E16Profile(E16Entity, SelectEntity):

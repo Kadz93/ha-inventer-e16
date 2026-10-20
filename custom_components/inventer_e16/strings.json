@@ -390,6 +390,15 @@
       }
     },
     "select": {
+      "mode": {
+        "name": "Operating mode",
+        "state": {
+          "heat_recovery": "Heat recovery",
+          "ventilation": "Ventilation",
+          "pause": "Closed flap",
+          "pause_open": "Open flap"
+        }
+      },
       "profile": {
         "name": "Ventilation profile",
         "state": {
