@@ -23,26 +23,31 @@ CATALOG_INTERVAL = timedelta(hours=24)
 
 @dataclass
 class E16Data:
-    zone: "E16ZoneCoordinator"
+    zones: list["E16ZoneCoordinator"]
     info: "E16InfoCoordinator"
     main_device_id: str | None = None
 
+    @property
+    def zone(self) -> "E16ZoneCoordinator | None":
+        return self.zones[0] if self.zones else None
+
 
 class E16ZoneCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass, entry, client):
+    def __init__(self, hass, entry, client, zone_index=0):
         super().__init__(
-            hass, LOGGER, name=f"{entry.title} zone", config_entry=entry,
+            hass, LOGGER, name=f"{entry.title} zone {zone_index}", config_entry=entry,
             update_interval=timedelta(
                 seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
             always_update=False,
         )
         self.client = client
+        self.zone_index = zone_index
         # Duration for speed/mode commands; the app offers 15 min to 8 h
         self.override_minutes = 60
 
     async def _async_update_data(self):
         try:
-            return await self.hass.async_add_executor_job(self.client.get_zone)
+            return await self.hass.async_add_executor_job(self.client.get_zone, self.zone_index)
         except E16AuthError as error:
             raise ConfigEntryAuthFailed("The controller rejected the PSK") from error
         except (OSError, ValueError) as error:
@@ -57,10 +62,10 @@ class E16ZoneCoordinator(DataUpdateCoordinator):
         self.async_set_updated_data(zone)
 
     async def async_override(self, command, speed=0, mode=3, zone=255, duration=0):
-        await self._async_command(self.client.user_override, command, speed, mode, zone, duration)
+        await self._async_command(self.client.user_override, command, speed, mode, zone, duration, self.zone_index)
 
     async def async_set_zone_field(self, field, raw):
-        await self._async_command(self.client.set_zone_field, self.data["zone_id"], field, raw)
+        await self._async_command(self.client.set_zone_field, self.data["zone_id"], field, raw, self.zone_index)
 
 
 class E16InfoCoordinator(DataUpdateCoordinator):
@@ -116,4 +121,4 @@ class E16InfoCoordinator(DataUpdateCoordinator):
 
 def create(hass, entry):
     client = E16Client(entry.data[CONF_HOST], entry.data[CONF_PSK])
-    return E16Data(E16ZoneCoordinator(hass, entry, client), E16InfoCoordinator(hass, entry, client))
+    return E16Data([E16ZoneCoordinator(hass, entry, client, 0)], E16InfoCoordinator(hass, entry, client))

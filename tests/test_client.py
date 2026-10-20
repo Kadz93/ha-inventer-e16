@@ -256,3 +256,35 @@ def test_time_program_delete(monkeypatch):
     connection = RecordingConnection(_program_reply(15, 2, bytes(8)))
     assert _client_with(monkeypatch, connection).set_time_program_entry(15, 2) is None
     assert connection.sent[0][14:22] == bytes(8)
+
+
+def _make_zone_reply(zone_id, name):
+    payload = bytearray(ZONE_REPLY[10:ZONE_REPLY[1]])
+    payload[0] = zone_id
+    encoded_name = name.encode("utf-8")
+    payload[1:17] = encoded_name + b"\x00" * (16 - len(encoded_name))
+    frame = bytearray(ZONE_REPLY[:10]) + payload
+    frame[0] = client.crc8(frame[1:])
+    return bytes(frame)
+
+
+def test_get_zones(monkeypatch):
+    reply1 = _make_zone_reply(1, "Zone 1")
+    reply2 = _make_zone_reply(2, "Zone 2")
+    connection = FakeConnection(reply1 + reply2)
+    zones = _client_with(monkeypatch, connection).get_zones()
+    assert len(zones) == 2
+    assert zones[0]["zone_id"] == 1 and zones[0]["name"] == "Zone 1"
+    assert zones[1]["zone_id"] == 2 and zones[1]["name"] == "Zone 2"
+
+
+def test_user_override_with_zone_index(monkeypatch):
+    reply = _make_zone_reply(2, "Zone 2")
+    connection = RecordingConnection(reply)
+    zone = _client_with(monkeypatch, connection).user_override(
+        client.CMD_ZONE_SPEED_MODE, speed=2, mode=client.FAN_HEAT_RECOVERY, zone=2, zone_index=1)
+    assert zone["zone_id"] == 2
+    assert len(connection.sent) == 2
+    read_cmd = connection.sent[1]
+    assert read_cmd[3] == client.T_ZONE_VIEW
+    assert read_cmd[10] == 1

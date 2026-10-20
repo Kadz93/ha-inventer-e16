@@ -54,7 +54,8 @@ def program_response(profile, entries):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    async_add_entities([E16Fan(entry.runtime_data.zone, entry, "fan")])
+    data = entry.runtime_data
+    async_add_entities([E16Fan(zone, entry, "fan", zone_id=zone.data["zone_id"]) for zone in data.zones])
     entity_platform.async_get_current_platform().async_register_entity_service(
         "set_mode",
         {
@@ -98,6 +99,9 @@ class E16Fan(E16Entity, FanEntity):
     _attr_supported_features = (FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE
                                 | FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF)
 
+    def __init__(self, coordinator, entry, key, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
+
     @property
     def is_on(self):
         # Not from playback: after a command it often lags behind for a poll or longer, while
@@ -137,11 +141,19 @@ class E16Fan(E16Entity, FanEntity):
             await self._speed_mode(speed=speed, preset=preset_mode)
         else:
             # App power button "on": cancel, the controller returns to its profile
-            await self.coordinator.async_override(client.CMD_CANCEL)
+            multi = len(self.coordinator.config_entry.runtime_data.zones) > 1
+            zone = self.coordinator.data["zone_id"] if multi else client.ZONE_GLOBAL
+            await self.coordinator.async_override(client.CMD_CANCEL, zone=zone)
 
     async def async_turn_off(self, **kwargs):
-        # App power button "off": global pause without end
-        await self.coordinator.async_override(client.CMD_GLOBAL_PAUSE, duration=client.FOREVER)
+        # App power button "off": pause without end
+        multi = len(self.coordinator.config_entry.runtime_data.zones) > 1
+        if multi:
+            await self.coordinator.async_override(
+                client.CMD_ZONE_SPEED_MODE, 0, client.FAN_OFF,
+                self.coordinator.data["zone_id"], client.FOREVER)
+        else:
+            await self.coordinator.async_override(client.CMD_GLOBAL_PAUSE, duration=client.FOREVER)
 
     async def async_get_time_program(self, profile=None):
         """Read only. Default: the zone's current profile."""

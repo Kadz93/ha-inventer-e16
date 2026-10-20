@@ -21,17 +21,35 @@ RESETS = (("filter_reset", client.F_FILTER_RESET), ("service_reset", client.F_SE
 
 async def async_setup_entry(hass, entry, async_add_entities):
     data = entry.runtime_data
-    async_add_entities([*(E16Command(data.zone, entry, *item) for item in COMMANDS),
-                        *(E16Reset(data.info, entry, *item) for item in RESETS)])
+    entities = []
+    for zone in data.zones:
+        zid = zone.data["zone_id"]
+        for key, cmd in COMMANDS:
+            entities.append(E16Command(zone, entry, key, cmd, zone_id=zid))
+    entities += [E16Reset(data.info, entry, *item) for item in RESETS]
+    async_add_entities(entities)
 
 
 class E16Command(E16Entity, ButtonEntity):
-    def __init__(self, coordinator, entry, key, command):
-        super().__init__(coordinator, entry, key)
+    def __init__(self, coordinator, entry, key, command, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
         self.command = command
 
     async def async_press(self):
-        await self.coordinator.async_override(*self.command)
+        multi = len(self.coordinator.config_entry.runtime_data.zones) > 1
+        if multi:
+            zid = self.coordinator.data["zone_id"]
+            if self.key == "boost":
+                await self.coordinator.async_override(
+                    client.CMD_ZONE_SPEED_MODE, 4, client.FAN_VENTILATION, zid, 900)
+            elif self.key == "pause_1h":
+                await self.coordinator.async_override(
+                    client.CMD_ZONE_SPEED_MODE, 0, client.FAN_OFF, zid, 3600)
+            else:  # resume
+                await self.coordinator.async_override(
+                    client.CMD_CANCEL, 0, client.FAN_OFF, zid, 0)
+        else:
+            await self.coordinator.async_override(*self.command)
 
 
 class E16Reset(E16Entity, ButtonEntity):

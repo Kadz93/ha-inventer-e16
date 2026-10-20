@@ -25,12 +25,14 @@ ZONE_SETTINGS = (
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    zone = entry.runtime_data.zone
-    async_add_entities([
-        E16Duration(zone, entry, "override_minutes"),
-        *(E16ZoneSetting(zone, entry, *setting) for setting in ZONE_SETTINGS
-          if setting[7] is None or zone.data.get(setting[7]) is not None),
-    ])
+    data = entry.runtime_data
+    entities = []
+    for zone in data.zones:
+        zid = zone.data["zone_id"]
+        entities.append(E16Duration(zone, entry, "override_minutes", zone_id=zid))
+        entities += [E16ZoneSetting(zone, entry, *setting, zone_id=zid) for setting in ZONE_SETTINGS
+                     if setting[7] is None or zone.data.get(setting[7]) is not None]
+    async_add_entities(entities)
 
 
 class E16Duration(E16Entity, RestoreNumber):
@@ -40,6 +42,9 @@ class E16Duration(E16Entity, RestoreNumber):
     _attr_native_max_value = 480
     _attr_native_step = 15
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+
+    def __init__(self, coordinator, entry, key, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
@@ -65,8 +70,8 @@ class E16ZoneSetting(E16Entity, NumberEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.BOX
 
-    def __init__(self, coordinator, entry, key, field, minimum, maximum, step, unit, device_class, _):
-        super().__init__(coordinator, entry, key)
+    def __init__(self, coordinator, entry, key, field, minimum, maximum, step, unit, device_class, _, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
         self.field = field
         self._attr_native_min_value = minimum
         self._attr_native_max_value = maximum
