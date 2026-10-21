@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.15 – 2026-10-21
+
+- **Onboarding with the phone** (#18): device ID and PSK can be read with a free BLE app such as
+  nRF Connect, no Python needed. Step-by-step guide with screenshots in `docs/onboarding.md`.
+- Setup accepts the PSK and the device ID the way BLE apps show them: hex with spaces, dashes,
+  colons or `0x`; the device ID also as hex bytes.
+- `tools/e16_onboard.py scan` also finds the controller by its name. On macOS it is reported
+  without its services, so the scan found nothing before (#3).
+- README: install directly from the HACS default list.
+
 ## 0.3.14 – 2026-10-14
 
 - **Firmware check opt-in** (#6): new installations no longer ask the manufacturer's cloud; switch
