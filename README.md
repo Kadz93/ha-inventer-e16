@@ -81,7 +81,7 @@ there is no undo.
 
 - Easy Connect e16 with Wi-Fi module, connected to your network (set up with the official app)
 - Home Assistant 2026.9 or newer (Python ≥ 3.13 for TLS-PSK)
-- Once: a computer with Bluetooth LE and Python to read the device key
+- Once: a computer with Bluetooth LE and Python, or a phone with a BLE app, to read the device key
 
 ## Installation
 
@@ -91,6 +91,8 @@ The controller encrypts the local connection with a key that is individual per d
 never shows it, but the controller hands it out over Bluetooth while in pairing mode.
 Step-by-step guide with troubleshooting: **[docs/onboarding.md](docs/onboarding.md)**
 (also in German).
+No computer at hand? It also works with a free Bluetooth app on your phone:
+**[step by step with screenshots](docs/onboarding.md#without-python-a-ble-app-on-your-phone)**.
 
 ```bash
 pip install -r tools/requirements.txt
