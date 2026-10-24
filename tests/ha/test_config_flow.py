@@ -141,7 +141,10 @@ async def test_recorded_discovery_key_does_not_reload(hass):
     entry = MockConfigEntry(domain=DOMAIN, unique_id="ABCDE-FGHIJ", data=DATA, title="inVENTer Zone 1")
     entry.add_to_hass(hass)
     data = MagicMock()
-    data.zone.async_config_entry_first_refresh = AsyncMock()
+    zone_mock = MagicMock()
+    zone_mock.async_config_entry_first_refresh = AsyncMock()
+    zone_mock.client.get_zone.side_effect = ValueError("no more zones")
+    data.zones = [zone_mock]
     data.info.async_config_entry_first_refresh = AsyncMock()
     with patch("custom_components.inventer_e16.coordinator.create", return_value=data) as create, \
             patch.object(hass.config_entries, "async_forward_entry_setups", AsyncMock()):

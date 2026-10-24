@@ -52,10 +52,13 @@ DAYS_PER_MONTH = 30.4375
 
 async def async_setup_entry(hass, entry, async_add_entities):
     data = entry.runtime_data
-    entities = [E16ZoneSensor(data.zone, entry, *description) for description in ZONE_SENSORS]
-    entities += [E16ZoneSensor(data.zone, entry, *description) for description in OPTIONAL_ZONE_SENSORS
-                 if data.zone.data[description[0]] is not None]
-    entities += [E16ClimateSensor(data.zone, entry, *description) for description in CLIMATE_SENSORS]
+    entities = []
+    for zone in data.zones:
+        zid = zone.data["zone_id"]
+        entities += [E16ZoneSensor(zone, entry, *description, zone_id=zid) for description in ZONE_SENSORS]
+        entities += [E16ZoneSensor(zone, entry, *description, zone_id=zid) for description in OPTIONAL_ZONE_SENSORS
+                     if zone.data[description[0]] is not None]
+        entities += [E16ClimateSensor(zone, entry, *description, zone_id=zid) for description in CLIMATE_SENSORS]
     for prefix in ("filter", "service"):
         entities += [E16DueSensor(data.info, entry, prefix, as_date=True),
                      E16DueSensor(data.info, entry, prefix, as_date=False)]
@@ -79,8 +82,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class E16ZoneSensor(E16Entity, SensorEntity):
-    def __init__(self, coordinator, entry, key, device_class, unit):
-        super().__init__(coordinator, entry, key)
+    def __init__(self, coordinator, entry, key, device_class, unit, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         # speed included: its hourly mean shows how hard the ventilation works over months
@@ -226,8 +229,8 @@ class E16ClimateSensor(E16Entity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
 
-    def __init__(self, coordinator, entry, key, side, kind):
-        super().__init__(coordinator, entry, key)
+    def __init__(self, coordinator, entry, key, side, kind, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
         self.side, self.kind = side, kind
         if kind == "dew_point":
             self._attr_device_class = SensorDeviceClass.TEMPERATURE

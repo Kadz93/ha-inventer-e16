@@ -14,6 +14,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
     return {
         "entry": async_redact_data(dict(entry.data), TO_REDACT),
         "options": dict(entry.options),
-        "zone": data.zone.data,
+        "zone": data.zones[0].data if data.zones else None,
+        "zones": [z.data for z in data.zones],
         "info": data.info.data,
     }

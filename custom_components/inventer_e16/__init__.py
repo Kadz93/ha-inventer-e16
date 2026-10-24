@@ -24,13 +24,37 @@ async def async_migrate_entry(hass, entry):
 
 async def async_setup_entry(hass, entry):
     data = coordinator.create(hass, entry)
-    await data.zone.async_config_entry_first_refresh()
+    await data.zones[0].async_config_entry_first_refresh()
+    # Discover additional zones (indices 1..7)
+    client = data.zones[0].client
+    for index in range(1, 8):
+        try:
+            zone_data = await hass.async_add_executor_job(client.get_zone, index)
+        except (OSError, ValueError):
+            break
+        if not zone_data.get("zone_id") or zone_data["zone_id"] in [z.data["zone_id"] for z in data.zones if z.data]:
+            break
+        zone_coord = coordinator.E16ZoneCoordinator(hass, entry, client, index)
+        zone_coord.async_set_updated_data(zone_data)
+        data.zones.append(zone_coord)
     await data.info.async_config_entry_first_refresh()
     # Create the main device first: fans and sensors reference it via via_device_id
     data.main_device_id = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id, identifiers={(DOMAIN, entry.data[CONF_DEVICE_ID])},
         name=entry.title, manufacturer="inVENTer", model="Easy Connect e16",
     ).id
+    # Create zone devices for multi-zone setups (zone 2+)
+    if len(data.zones) > 1:
+        device_id = entry.data[CONF_DEVICE_ID]
+        for zone_coord in data.zones[1:]:
+            zone_data = zone_coord.data
+            dr.async_get(hass).async_get_or_create(
+                config_entry_id=entry.entry_id,
+                identifiers={(DOMAIN, f"{device_id}_z{zone_data['zone_id']}")},
+                name=f"inVENTer {zone_data['name']}" if zone_data.get("name") else f"inVENTer Zone {zone_data['zone_id']}",
+                manufacturer="inVENTer", model="Easy Connect e16",
+                via_device_id=data.main_device_id,
+            )
     entry.runtime_data = data
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # No update listener: it would reload on every entry change, even when Home Assistant only

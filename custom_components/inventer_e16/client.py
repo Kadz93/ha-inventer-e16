@@ -80,6 +80,8 @@ SYS_BATTERY_CRITICAL, SYS_ALARM, SYS_FILTER_TIMEOUT, SYS_SERVICE_TIMEOUT = 16, 3
 BATTERY_DEVICE_TYPES = {4, 5, 12}
 # A controller has a handful of radio devices; cap what a (faulty) reply can make us query
 MAX_DEVICES = 32
+# Maximum number of zones to probe; real installations have 1-4
+MAX_ZONES = 8
 # Hardware types as used by the vendor firmware catalog; device rows use 1-3,
 # the ESP32 Wi-Fi module comes from packet 54
 HW_MZCU, HW_FCU, HW_SENSORS, HW_ESP32 = 1, 2, 3, 6
@@ -299,16 +301,30 @@ class E16Client:
             raise ValueError(f"Unexpected reply for field {field_id}")
         return answer[8:4 + length]
 
-    def _update(self, ptype, payload):
+    def _update(self, ptype, payload, zone_index=0):
         """Send like the app does: no reply expected, state is read again afterwards."""
         with self._connect() as connection, _malformed_as_value_error():
             connection.sendall(packet(ptype, payload, operation=UPDATE))
             time.sleep(0.5)
-            return parse_zone(self._request(connection, T_ZONE_VIEW, b"\x00"))
+            return parse_zone(self._request(connection, T_ZONE_VIEW, bytes([zone_index])))
 
     def get_zone(self, index=0):
         with self._connect() as connection, _malformed_as_value_error():
             return parse_zone(self._request(connection, T_ZONE_VIEW, bytes([index])))
+
+    def get_zones(self):
+        """Poll ZoneViewRow for indices 0..MAX_ZONES and return all valid zones."""
+        zones = []
+        with self._connect() as connection, _malformed_as_value_error():
+            for index in range(MAX_ZONES):
+                try:
+                    zone = parse_zone(self._request(connection, T_ZONE_VIEW, bytes([index])))
+                except (ValueError, ConnectionError):
+                    break
+                zones.append(zone)
+        if not zones:
+            raise ValueError("Controller returned no zones")
+        return zones
 
     def get_info(self):
         """Maintenance, firmware, Wi-Fi and radio devices - rarely changes."""
@@ -360,11 +376,14 @@ class E16Client:
             raise ValueError(f"Time program entry {entry} of profile {profile} was not stored")
         return stored
 
-    def user_override(self, command, speed=0, mode=FAN_OFF, zone=ZONE_GLOBAL, duration=0):
-        return self._update(T_USER_OVERRIDE, override_payload(command, speed, mode, zone, duration))
+    def user_override(self, command, speed=0, mode=FAN_OFF, zone=ZONE_GLOBAL, duration=0,
+                      zone_index=0):
+        return self._update(T_USER_OVERRIDE, override_payload(command, speed, mode, zone, duration),
+                            zone_index=zone_index)
 
     def set_global_field(self, field_id, raw):
         return self._update(T_GLOBAL_FIELD, field_payload(field_id, raw))
 
-    def set_zone_field(self, zone_id, field, raw):
-        return self._update(T_ZONE_FIELD, field_payload(zone_id * 65536 + field, raw))
+    def set_zone_field(self, zone_id, field, raw, zone_index=0):
+        return self._update(T_ZONE_FIELD, field_payload(zone_id * 65536 + field, raw),
+                            zone_index=zone_index)

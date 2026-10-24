@@ -16,20 +16,37 @@ DUE_BITS = {
 
 async def async_setup_entry(hass, entry, async_add_entities):
     data = entry.runtime_data
-    async_add_entities([
-        E16Problem(data.zone, entry, "problem"),
-        E16Due(data.info, entry, "filter", data.zone),
-        E16Due(data.info, entry, "service", data.zone),
+    entities = []
+    for zone in data.zones:
+        zid = zone.data["zone_id"]
+        entities.append(E16Problem(zone, entry, "problem", zone_id=zid))
+        entities.append(E16VentilationDries(zone, entry, "ventilation_dries", zone_id=zid))
+    entities += [
+        E16Due(data.info, entry, "filter", data.zones),
+        E16Due(data.info, entry, "service", data.zones),
         E16RadioLost(data.info, entry, "radio_lost"),
-        E16BatteryLow(data.info, entry, "battery_low", data.zone),
-        E16Alarm(data.info, entry, "alarm", data.zone),
-        E16VentilationDries(data.zone, entry, "ventilation_dries"),
-    ])
+        E16BatteryLow(data.info, entry, "battery_low", data.zones),
+        E16Alarm(data.info, entry, "alarm", data.zones),
+    ]
+    async_add_entities(entities)
+
+
+def _zones_status(zones):
+    if not isinstance(zones, list):
+        zones = [zones]
+    status = 0
+    for z in zones:
+        if z.data:
+            status |= z.data["status"]
+    return status
 
 
 class E16Problem(E16Entity, BinarySensorEntity):
     """System status not zero - no interpretation of single bits."""
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator, entry, key, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
 
     @property
     def is_on(self):
@@ -40,9 +57,9 @@ class E16Due(E16Entity, BinarySensorEntity):
     """On as soon as the controller or a radio device reports 'due soon' or 'expired'."""
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
-    def __init__(self, coordinator, entry, kind, zone):
+    def __init__(self, coordinator, entry, kind, zones):
         super().__init__(coordinator, entry, f"{kind}_due_flag")
-        self.kind, self.zone = kind, zone
+        self.kind, self.zones = kind, zones
 
     def _devices(self):
         _, device_bits = DUE_BITS[self.kind]
@@ -52,8 +69,7 @@ class E16Due(E16Entity, BinarySensorEntity):
     @property
     def is_on(self):
         system_bit, _ = DUE_BITS[self.kind]
-        zone_status = self.zone.data["status"] if self.zone.data else 0
-        return bool(zone_status & system_bit or self._devices())
+        return bool(_zones_status(self.zones) & system_bit or self._devices())
 
     @property
     def extra_state_attributes(self):
@@ -82,9 +98,9 @@ class E16BatteryLow(E16Entity, BinarySensorEntity):
     """Battery low/critical as flagged by the controller - the same signal the app uses."""
     _attr_device_class = BinarySensorDeviceClass.BATTERY
 
-    def __init__(self, coordinator, entry, key, zone):
+    def __init__(self, coordinator, entry, key, zones):
         super().__init__(coordinator, entry, key)
-        self.zone = zone
+        self.zones = zones
 
     def _devices(self):
         bits = client.DEV_BATTERY_LOW | client.DEV_BATTERY_CRITICAL
@@ -92,8 +108,7 @@ class E16BatteryLow(E16Entity, BinarySensorEntity):
 
     @property
     def is_on(self):
-        zone_status = self.zone.data["status"] if self.zone.data else 0
-        return bool(zone_status & client.SYS_BATTERY_CRITICAL or self._devices())
+        return bool(_zones_status(self.zones) & client.SYS_BATTERY_CRITICAL or self._devices())
 
     @property
     def extra_state_attributes(self):
@@ -104,14 +119,13 @@ class E16Alarm(E16Entity, BinarySensorEntity):
     """Alarm input triggered (alarm interface module, e.g. a fire alarm contact)."""
     _attr_device_class = BinarySensorDeviceClass.SAFETY
 
-    def __init__(self, coordinator, entry, key, zone):
+    def __init__(self, coordinator, entry, key, zones):
         super().__init__(coordinator, entry, key)
-        self.zone = zone
+        self.zones = zones
 
     @property
     def is_on(self):
-        zone_status = self.zone.data["status"] if self.zone.data else 0
-        return bool(zone_status & client.SYS_ALARM
+        return bool(_zones_status(self.zones) & client.SYS_ALARM
                     or any(d["status"] & client.DEV_ALARM for d in self.coordinator.data["devices"]))
 
 
@@ -119,8 +133,8 @@ class E16VentilationDries(E16Entity, BinarySensorEntity):
     """On while bringing in outdoor air would dry the room noticeably (dew point rule, hysteresis)."""
     _attr_icon = "mdi:water-off"
 
-    def __init__(self, coordinator, entry, key):
-        super().__init__(coordinator, entry, key)
+    def __init__(self, coordinator, entry, key, zone_id=None):
+        super().__init__(coordinator, entry, key, zone_id=zone_id)
         self._on = False
 
     @property
