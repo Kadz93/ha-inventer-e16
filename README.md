@@ -1,3 +1,13 @@
+# Disclaimer
+
+This is a fork, all credit for analyzing the protocol goes to the owner of the main repo.
+This for may provide additional functionality that can later be merged into the main repo.
+Testing environment is a multi zone setup with iv14zero and twin+ vents.
+
+I am an experienced hardware technician and software dev but use 100% AI to code this in my spare time. (as well as the main repo i guess, no disclaimer but lots of agent mds etc)
+I test everything on my own setup before releasing it into my main, bugs will appear :)
+
+
 # inVENTer Easy Connect e16 for Home Assistant
 
 Local control of inVENTer decentralised ventilation systems with the **Easy Connect e16**
